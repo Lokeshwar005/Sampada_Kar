@@ -1,0 +1,75 @@
+# ==========================================
+# Sampada Kar – Monorepo .gitignore
+# ==========================================
+
+# Dependencies
+node_modules/
+*/node_modules/
+package-lock.json.bak
+
+# Production Build Outputs
+dist/
+build/
+client/dist/
+server/dist/
+out/
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*.local
+server/.env
+client/.env
+!.env.example
+!server/.env.example
+
+# Local SQLite Databases & WAL/Journal Files
+*.db
+*.db-journal
+*.sqlite
+*.sqlite-journal
+server/dev.db
+server/dev.db-journal
+server/prisma/dev.db
+server/prisma/dev.db-journal
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# Vite & TypeScript Caches
+.vite/
+client/.vite/
+*.tsbuildinfo
+
+# Test Coverage
+coverage/
+.nyc_output/
+
+# OS Generated Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+[Dd]esktop.ini
+
+# IDE & Editor Configurations
+.idea/
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+*.sublime-project
+*.sublime-workspace
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

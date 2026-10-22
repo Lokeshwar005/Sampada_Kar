@@ -1,0 +1,298 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              String   @id @default(uuid())
+  fullName        String
+  email           String   @unique
+  mobile          String   @unique
+  passwordHash    String
+  role            String   @default("CITIZEN") // CITIZEN, WARD_OFFICER, ADMIN
+  isSeniorCitizen Boolean  @default(false)
+  isBlocked       Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  properties             Property[]                @relation("OwnerProperties")
+  wardAssignments        WardOfficerAssignment[]
+  payments               Payment[]
+  instalments            PaymentInstalment[]
+  issuedNotices          DemandNotice[]            @relation("OfficerNotices")
+  receivedNotices        DemandNotice[]            @relation("RecipientNotices")
+  grievances             Grievance[]               @relation("CitizenGrievances")
+  assignedGrievances     Grievance[]               @relation("OfficerGrievances")
+  initiatedTransfers     TransferRequest[]         @relation("CurrentOwnerTransfers")
+  reviewedTransfers      TransferRequest[]         @relation("OfficerReviewedTransfers")
+  reassessments          ReassessmentRequest[]     @relation("CitizenReassessments")
+  reviewedReassessments  ReassessmentRequest[]     @relation("OfficerReviewedReassessments")
+  feedback               Feedback[]
+  notifications          Notification[]
+}
+
+model WardOfficerAssignment {
+  id         String   @id @default(uuid())
+  officerId  String
+  wardNumber String
+  createdAt  DateTime @default(now())
+
+  officer    User     @relation(fields: [officerId], references: [id], onDelete: Cascade)
+
+  @@unique([officerId, wardNumber])
+}
+
+model Property {
+  id               String   @id @default(uuid())
+  propertyId       String   @unique // e.g., PROP-W01-1001
+  ownerId          String
+  wardNumber       String   // e.g., W-01, W-02
+  address          String
+  propertyType     String   // RESIDENTIAL, COMMERCIAL, INDUSTRIAL, INSTITUTIONAL, AGRICULTURAL
+  builtUpAreaSqFt  Float
+  constructionYear Int
+  isExempt         Boolean  @default(false)
+  exemptionReason  String?
+  assessmentYear   Int      @default(2026)
+  status           String   @default("ACTIVE") // ACTIVE, PENDING_TRANSFER, PENDING_REASSESSMENT
+  hasArrears       Boolean  @default(false)
+  arrearsAmount    Float    @default(0.0)
+  arrearsYears     String?  // e.g., "2024-2025"
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relations
+  owner                  User                     @relation("OwnerProperties", fields: [ownerId], references: [id])
+  ownershipHistory       OwnershipHistory[]
+  payments               Payment[]
+  instalments            PaymentInstalment[]
+  demandNotices          DemandNotice[]
+  grievances             Grievance[]
+  transfers              TransferRequest[]
+  reassessments          ReassessmentRequest[]
+}
+
+model OwnershipHistory {
+  id             String    @id @default(uuid())
+  propertyId     String
+  ownerName      String
+  ownerMobile    String
+  ownershipType  String    // PURCHASE, INHERITANCE, GIFT, ALLOTMENT
+  startDate      DateTime  @default(now())
+  endDate        DateTime?
+  documentRef    String?
+  transferReason String?
+  createdAt      DateTime  @default(now())
+
+  property       Property  @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+}
+
+model TaxSetting {
+  id                               String   @id @default(uuid())
+  financialYear                    String   @unique // e.g., "2026-2027"
+  residentialRate                  Float    @default(8.0)  // ₹8 per sq ft
+  commercialRate                   Float    @default(15.0) // ₹15 per sq ft
+  industrialRate                   Float    @default(18.0) // ₹18 per sq ft
+  institutionalRate                Float    @default(10.0) // ₹10 per sq ft
+  agriculturalRate                 Float    @default(3.0)  // ₹3 per sq ft
+  ageBand0to5                      Float    @default(0.0)  // 0%
+  ageBand6to15                     Float    @default(10.0) // 10%
+  ageBand16to30                    Float    @default(20.0) // 20%
+  ageBandAbove30                   Float    @default(30.0) // 30%
+  earlyBirdRebatePercent           Float    @default(5.0)  // 5%
+  seniorCitizenRebatePercent       Float    @default(10.0) // 10%
+  latePaymentPenaltyMonthlyPercent Float    @default(2.0)  // 2% per month
+  maxPenaltyPercentCap             Float    @default(24.0) // 24% max cap
+  arrearPenaltyPercent             Float    @default(18.0) // 18% annual
+  dueDate                          DateTime
+  earlyBirdCutoffDate              DateTime
+  isActive                         Boolean  @default(true)
+  createdAt                        DateTime @default(now())
+  updatedAt                        DateTime @updatedAt
+}
+
+model Payment {
+  id                  String   @id @default(uuid())
+  receiptNumber       String   @unique // e.g., ST-2026-0001
+  propertyId          String
+  payerId             String
+  financialYear       String   @default("2026-2027")
+  assessmentYear      Int      @default(2026)
+  baseTax             Float
+  ageDiscountAmount   Float
+  netTax              Float
+  earlyRebateAmount   Float    @default(0.0)
+  seniorRebateAmount  Float    @default(0.0)
+  latePenaltyAmount   Float    @default(0.0)
+  arrearsAmount       Float    @default(0.0)
+  arrearsPenaltyAmount Float   @default(0.0)
+  totalAmount         Float
+  paymentMode         String   // MOCK_GATEWAY, RAZORPAY_UPI, RAZORPAY_CARD, RAZORPAY_NETBANKING
+  transactionId       String   @unique
+  orderId             String?
+  paymentSignature    String?
+  status              String   @default("SUCCESS") // SUCCESS, PENDING, FAILED
+  isInstalment        Boolean  @default(false)
+  instalmentPlan      Int?     // 2 or 4
+  amountInWords       String
+  paidAt              DateTime @default(now())
+  createdAt           DateTime @default(now())
+
+  property            Property @relation(fields: [propertyId], references: [id])
+  payer               User     @relation(fields: [payerId], references: [id])
+  instalmentRecords   PaymentInstalment[]
+}
+
+model PaymentInstalment {
+  id            String    @id @default(uuid())
+  paymentId     String?
+  propertyId    String
+  payerId       String
+  financialYear String    @default("2026-2027")
+  partNumber    Int       // 1, 2, 3, 4
+  totalParts    Int       // 2 or 4
+  amount        Float
+  dueDate       DateTime
+  status        String    @default("PENDING") // PENDING, PAID, OVERDUE
+  receiptNumber String?
+  transactionId String?
+  paidAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  payment       Payment?  @relation(fields: [paymentId], references: [id])
+  property      Property  @relation(fields: [propertyId], references: [id])
+  payer         User      @relation(fields: [payerId], references: [id])
+}
+
+model DemandNotice {
+  id                 String   @id @default(uuid())
+  noticeNumber       String   @unique // e.g., DN-2026-0001
+  propertyId         String
+  recipientId        String
+  issuedByOfficerId  String
+  financialYear      String   @default("2026-2027")
+  assessmentYear     Int      @default(2026)
+  unpaidTax          Float
+  accruedPenalty     Float
+  arrears            Float
+  totalDue           Float
+  issueDate          DateTime @default(now())
+  deadlineDate       DateTime // Exactly 15 days from issue date
+  status             String   @default("ISSUED") // ISSUED, PAID, SERVED
+  createdAt          DateTime @default(now())
+
+  property           Property @relation(fields: [propertyId], references: [id])
+  recipient          User     @relation("RecipientNotices", fields: [recipientId], references: [id])
+  officer            User     @relation("OfficerNotices", fields: [issuedByOfficerId], references: [id])
+}
+
+model Grievance {
+  id                 String    @id @default(uuid())
+  ticketNumber       String    @unique // e.g., GRV-2026-0001
+  citizenId          String
+  propertyId         String?
+  wardNumber         String
+  category           String    // BILLING_ISSUE, INCORRECT_MEASUREMENT, PAYMENT_FAILURE, NAME_CORRECTION, OTHER
+  subject            String
+  description        String
+  status             String    @default("OPEN") // OPEN, IN_PROGRESS, RESOLVED, REJECTED
+  assignedOfficerId  String?
+  officerRemarks     String?
+  resolvedAt         DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  citizen            User      @relation("CitizenGrievances", fields: [citizenId], references: [id])
+  officer            User?     @relation("OfficerGrievances", fields: [assignedOfficerId], references: [id])
+  property           Property? @relation(fields: [propertyId], references: [id])
+}
+
+model TransferRequest {
+  id                  String    @id @default(uuid())
+  applicationNumber   String    @unique // e.g., TRF-2026-0001
+  propertyId          String
+  currentOwnerId      String
+  newOwnerName        String
+  newOwnerMobile      String
+  newOwnerEmail       String?
+  transferType        String    // SALE, GIFT, INHERITANCE
+  deedNumber          String
+  deedDate            DateTime
+  supportingDocRef    String?
+  status              String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewedByOfficerId String?
+  rejectionReason     String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  property            Property  @relation(fields: [propertyId], references: [id])
+  currentOwner        User      @relation("CurrentOwnerTransfers", fields: [currentOwnerId], references: [id])
+  officer             User?     @relation("OfficerReviewedTransfers", fields: [reviewedByOfficerId], references: [id])
+}
+
+model ReassessmentRequest {
+  id                    String    @id @default(uuid())
+  applicationNumber     String    @unique // e.g., REA-2026-0001
+  propertyId            String
+  citizenId             String
+  existingArea          Float
+  proposedArea          Float
+  existingType          String
+  proposedType          String
+  reason                String
+  existingEstimatedTax  Float
+  proposedEstimatedTax  Float
+  status                String    @default("PENDING") // PENDING, APPROVED, REJECTED
+  reviewedByOfficerId   String?
+  rejectionReason       String?
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  property              Property  @relation(fields: [propertyId], references: [id])
+  citizen               User      @relation("CitizenReassessments", fields: [citizenId], references: [id])
+  officer               User?     @relation("OfficerReviewedReassessments", fields: [reviewedByOfficerId], references: [id])
+}
+
+model Notification {
+  id              String   @id @default(uuid())
+  recipientUserId String?  // Specific user or null if role-based
+  targetRole      String?  // CITIZEN, WARD_OFFICER, ADMIN
+  title           String
+  message         String
+  type            String   @default("INFO") // INFO, SUCCESS, WARNING, ALERT
+  link            String?
+  isRead          Boolean  @default(false)
+  createdAt       DateTime @default(now())
+
+  recipient       User?    @relation(fields: [recipientUserId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  userName   String?
+  userRole   String?
+  action     String   // e.g., LOGIN, MAKE_PAYMENT, APPROVE_TRANSFER, UPDATE_RATES, ISSUE_NOTICE
+  entityType String   // Property, User, Payment, TaxSetting, Transfer, Grievance
+  entityId   String?
+  details    String   // JSON or text
+  ipAddress  String?
+  timestamp  DateTime @default(now())
+}
+
+model Feedback {
+  id            String   @id @default(uuid())
+  userId        String
+  referenceType String   // PAYMENT, GRIEVANCE, GENERAL
+  referenceId   String?
+  rating        Int      // 1 to 5
+  comments      String?
+  createdAt     DateTime @default(now())
+
+  user          User     @relation(fields: [userId], references: [id])
+}

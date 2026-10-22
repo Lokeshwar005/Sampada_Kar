@@ -1,0 +1,17 @@
+{
+  "name": "sampada-kar-monorepo",
+  "version": "1.0.0",
+  "description": "Sampada Kar – Property Tax Management & Payment Portal for Indian Municipal Corporations",
+  "scripts": {
+    "dev:server": "npm run dev --prefix server",
+    "dev:client": "npm run dev --prefix client",
+    "build:server": "npm run build --prefix server",
+    "build:client": "npm run build --prefix client",
+    "build": "npm run build:server && npm run build:client",
+    "test:server": "npm run test --prefix server",
+    "seed": "npm run prisma:seed --prefix server"
+  },
+  "keywords": ["property-tax", "municipal-corporation", "digital-india", "razorpay", "react", "express", "prisma"],
+  "author": "Sampada Kar Development Team",
+  "license": "MIT"
+}
